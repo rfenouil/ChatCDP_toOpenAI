@@ -1,0 +1,9 @@
+# SHA-256 fingerprints (normalized text: lowercased, whitespace collapsed) of known
+# compaction prompts, per TUI client. When matched, the proxy replies with an empty
+# summary without calling the chat.
+# Fill in from the client's source (e.g. OpenCode: packages/core/src/session/compaction.ts).
+
+[opencode_v2]
+hashes = [
+  # "<sha256 of the normalized v2 compaction prompt>"
+]

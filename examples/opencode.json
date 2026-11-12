@@ -1,0 +1,21 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "local/chat-via-cdp",
+  "provider": {
+    "local": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "chat2openai local",
+      "options": {
+        "baseURL": "http://127.0.0.1:8080/v1",
+        "apiKey": "MY_TOKEN"
+      },
+      "models": {
+        "chat-via-cdp": {
+          "name": "Chat via CDP",
+          "limit": { "context": 10000000, "output": 32768 },
+          "capabilities": { "tools": true }
+        }
+      }
+    }
+  }
+}

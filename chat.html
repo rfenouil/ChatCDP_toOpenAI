@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Chat de test CDP</title>
+<style>
+  body { font-family: sans-serif; max-width: 480px; margin: 2em auto; }
+  #messages { border: 1px solid #ccc; border-radius: 8px; padding: 1em; height: 300px; overflow-y: auto; }
+  .msg { margin: 0.4em 0; padding: 0.4em 0.8em; border-radius: 8px; max-width: 80%; }
+  .msg.user { background: #dcf; margin-left: auto; text-align: right; }
+  .msg.bot { background: #eee; }
+  #composer { display: flex; gap: 0.5em; margin-top: 0.5em; }
+  #input { flex: 1; padding: 0.5em; }
+  #send { padding: 0.5em 1em; }
+</style>
+</head>
+<body>
+<h1>Chat de test</h1>
+<div id="messages"></div>
+<div id="composer">
+  <input id="input" placeholder="Écrivez un message..." autocomplete="off">
+  <button id="send">Envoyer</button>
+</div>
+<script>
+const messages = document.getElementById('messages');
+const input = document.getElementById('input');
+const send = document.getElementById('send');
+
+function addMessage(author, text) {
+  const div = document.createElement('div');
+  div.className = 'msg ' + author;
+  div.dataset.author = author;
+  div.textContent = text;
+  messages.appendChild(div);
+  messages.scrollTop = messages.scrollHeight;
+}
+
+const MCP_TOOLS = {
+  echo: {
+    description: 'Renvoie le texte passé en argument',
+    inputSchema: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] }
+  },
+  get_time: {
+    description: 'Renvoie l\'heure actuelle du navigateur',
+    inputSchema: { type: 'object', properties: {} }
+  }
+};
+
+function mcpDispatch(req) {
+  if (req.method === 'ping') return { pong: true, ts: Date.now() };
+  if (req.method === 'compact') {
+    return { summary: 'Resume simule de ' + (req.params.message_count || 0) + ' messages', model: 'chat-via-cdp' };
+  }
+  if (req.method === 'chat') {
+    const last = [...(req.params.messages || [])].reverse().find(m => m.role === 'user');
+    const text = last ? last.content : '';
+    const tools = req.params.tools || [];
+    if (tools.length > 0 && tools[0].function && tools[0].function.name && text.toLowerCase().includes('outil')) {
+      return {
+        finish_reason: 'tool_calls',
+        tool_calls: [{
+          id: 'call_sim_1', type: 'function',
+          function: { name: tools[0].function.name, arguments: JSON.stringify({ echo: text }) }
+        }]
+      };
+    }
+    return { finish_reason: 'stop', reply: 'Reponse simulee du "modele" a : ' + text, model: 'chat-via-cdp' };
+  }
+  if (req.method === 'tools/list') return { tools: Object.entries(MCP_TOOLS).map(([name, t]) => ({ name, ...t })) };
+  if (req.method === 'tools/call') {
+    const tool = MCP_TOOLS[req.params && req.params.name];
+    if (!tool) throw { code: -32601, message: 'outil inconnu: ' + (req.params && req.params.name) };
+    if (req.params.name === 'echo') return { echoed: req.params.arguments.text };
+    if (req.params.name === 'get_time') return { iso: new Date().toISOString() };
+  }
+  throw { code: -32601, message: 'méthode inconnue: ' + req.method };
+}
+
+function mcpHandle(text) {
+  const payload = text.slice(4).trim();
+  let req;
+  try { req = JSON.parse(payload); } catch (e) {
+    return 'MCP:' + JSON.stringify({ jsonrpc: '2.0', id: null, error: { code: -32700, message: 'JSON invalide' } });
+  }
+  try {
+    const result = mcpDispatch(req);
+    return 'MCP:' + JSON.stringify({ jsonrpc: '2.0', id: req.id, result });
+  } catch (err) {
+    return 'MCP:' + JSON.stringify({ jsonrpc: '2.0', id: req.id !== undefined ? req.id : null, error: err });
+  }
+}
+
+function submit() {
+  const text = input.value.trim();
+  if (!text) return;
+  addMessage('user', text);
+  input.value = '';
+  if (text.startsWith('MCP:')) {
+    setTimeout(() => addMessage('bot', mcpHandle(text)), 300);
+  } else {
+    setTimeout(() => addMessage('bot', 'Réponse auto à : ' + text), 400);
+  }
+}
+
+send.addEventListener('click', submit);
+input.addEventListener('keydown', e => { if (e.key === 'Enter') submit(); });
+
+addMessage('bot', 'Bienvenue dans le chat de test !');
+</script>
+</body>
+</html>
